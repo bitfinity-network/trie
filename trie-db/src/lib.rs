@@ -515,7 +515,7 @@ impl TrieFactory {
 /// Trait with definition of trie layout.
 /// Contains all associated trait needed for
 /// a trie definition or implementation.
-pub trait TrieLayout {
+pub trait TrieLayout: Clone {
 	/// If true, the trie will use extension nodes and
 	/// no partial in branch, if false the trie will only
 	/// use branch and node with partials in both.
