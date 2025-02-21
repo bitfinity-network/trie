@@ -237,7 +237,7 @@ impl<'a> NibbleSlice<'a> {
 	/// Return left portion of `NibbleSlice`, if the slice
 	/// originates from a full key it will be the `Prefix of
 	/// the node`.
-	pub fn left(&'a self) -> Prefix<'a> {
+	pub fn left(&self) -> Prefix {
 		let split = self.offset / nibble_ops::NIBBLE_PER_BYTE;
 		let ix = (self.offset % nibble_ops::NIBBLE_PER_BYTE) as u8;
 		if ix == 0 {
