@@ -455,12 +455,14 @@ impl Bitmap {
 }
 
 /// substrate trie layout
+#[derive(Clone)]
 pub struct LayoutV0<H>(PhantomData<H>);
 
 /// substrate trie layout, with external value nodes.
+#[derive(Clone)]
 pub struct LayoutV1<H>(PhantomData<H>);
 
-impl<H> TrieLayout for LayoutV0<H>
+impl<H: Clone> TrieLayout for LayoutV0<H>
 where
 	H: Hasher + core::fmt::Debug,
 {
@@ -472,7 +474,7 @@ where
 	type Codec = NodeCodec<Self::Hash>;
 }
 
-impl<H> TrieConfiguration for LayoutV0<H>
+impl<H: Clone> TrieConfiguration for LayoutV0<H>
 where
 	H: Hasher + core::fmt::Debug,
 {
@@ -502,7 +504,7 @@ where
 	}
 }
 
-impl<H> TrieLayout for LayoutV1<H>
+impl<H: Clone> TrieLayout for LayoutV1<H>
 where
 	H: Hasher + core::fmt::Debug,
 {
@@ -514,7 +516,7 @@ where
 	type Codec = NodeCodec<Self::Hash>;
 }
 
-impl<H> TrieConfiguration for LayoutV1<H>
+impl<H: Clone> TrieConfiguration for LayoutV1<H>
 where
 	H: Hasher + core::fmt::Debug,
 {
