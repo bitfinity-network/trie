@@ -24,8 +24,7 @@ use reference_trie::{
 	ReferenceNodeCodecNoExt, TestTrieCache,
 };
 use trie_db::{
-	DBValue, NodeCodec, Recorder, Trie, TrieCache, TrieDBBuilder, TrieDBMut, TrieDBMutBuilder,
-	TrieError, TrieLayout, TrieMut, Value,
+	DBValue, NodeCodec, Recorder, Trie, TrieCache, TrieDBBuilder, TrieDBMut, TrieDBMutBuilder, TrieError, TrieHash, TrieLayout, TrieMut, Value
 };
 use trie_standardmap::*;
 
@@ -107,27 +106,27 @@ fn playpen_internal<T: TrieLayout>() {
 		}
 
 		memtrie.commit();
-		if *memtrie.root() != real {
+		if *checked_root(&mut memtrie) != real {
 			println!("TRIE MISMATCH");
 			println!();
-			println!("{:?} vs {:?}", memtrie.root(), real);
+			println!("{:?} vs {:?}", checked_root(&mut memtrie), real);
 			for i in &x {
 				println!("{:#x?} -> {:#x?}", i.0, i.1);
 			}
 		}
-		assert_eq!(*memtrie.root(), real);
+		assert_eq!(*checked_root(&mut memtrie), real);
 		assert!(unpopulate_trie(&mut memtrie, &x), "{:?}", (test_i, initial_seed));
 		memtrie.commit();
 		let hashed_null_node = reference_hashed_null_node::<T>();
-		if *memtrie.root() != hashed_null_node {
+		if *checked_root(&mut memtrie) != hashed_null_node {
 			println!("- TRIE MISMATCH");
 			println!();
-			println!("{:#x?} vs {:#x?}", memtrie.root(), hashed_null_node);
+			println!("{:#x?} vs {:#x?}", checked_root(&mut memtrie), hashed_null_node);
 			for i in &x {
 				println!("{:#x?} -> {:#x?}", i.0, i.1);
 			}
 		}
-		assert_eq!(*memtrie.root(), hashed_null_node);
+		assert_eq!(*checked_root(&mut memtrie), hashed_null_node);
 	}
 }
 
@@ -137,7 +136,7 @@ fn init_internal<T: TrieLayout>() {
 	let mut root = Default::default();
 	let mut t = TrieDBMutBuilder::<T>::new(&mut memdb, &mut root).build();
 	let hashed_null_node = reference_hashed_null_node::<T>();
-	assert_eq!(*t.root(), hashed_null_node);
+	assert_eq!(*checked_root(&mut t), hashed_null_node);
 }
 
 test_layouts!(insert_on_empty, insert_on_empty_internal);
@@ -147,7 +146,7 @@ fn insert_on_empty_internal<T: TrieLayout>() {
 	let mut t = TrieDBMutBuilder::<T>::new(&mut memdb, &mut root).build();
 	t.insert(&[0x01u8, 0x23], &[0x01u8, 0x23]).unwrap();
 	assert_eq!(
-		*t.root(),
+		*checked_root(&mut t),
 		reference_trie_root::<T, _, _, _>(vec![(vec![0x01u8, 0x23], vec![0x01u8, 0x23])]),
 	);
 }
@@ -228,7 +227,7 @@ fn insert_replace_root_internal<T: TrieLayout>() {
 	t.insert(&[0x01u8, 0x23], &[0x01u8, 0x23]).unwrap();
 	t.insert(&[0x01u8, 0x23], &[0x23u8, 0x45]).unwrap();
 	assert_eq!(
-		*t.root(),
+		*checked_root(&mut t),
 		reference_trie_root::<T, _, _, _>(vec![(vec![0x01u8, 0x23], vec![0x23u8, 0x45])]),
 	);
 }
@@ -241,7 +240,7 @@ fn insert_make_branch_root_internal<T: TrieLayout>() {
 	t.insert(&[0x01u8, 0x23], &[0x01u8, 0x23]).unwrap();
 	t.insert(&[0x11u8, 0x23], &[0x11u8, 0x23]).unwrap();
 	assert_eq!(
-		*t.root(),
+		*checked_root(&mut t),
 		reference_trie_root::<T, _, _, _>(vec![
 			(vec![0x01u8, 0x23], vec![0x01u8, 0x23]),
 			(vec![0x11u8, 0x23], vec![0x11u8, 0x23])
@@ -258,7 +257,7 @@ fn insert_into_branch_root_internal<T: TrieLayout>() {
 	t.insert(&[0xf1u8, 0x23], &[0xf1u8, 0x23]).unwrap();
 	t.insert(&[0x81u8, 0x23], &[0x81u8, 0x23]).unwrap();
 	assert_eq!(
-		*t.root(),
+		*checked_root(&mut t),
 		reference_trie_root::<T, _, _, _>(vec![
 			(vec![0x01u8, 0x23], vec![0x01u8, 0x23]),
 			(vec![0x81u8, 0x23], vec![0x81u8, 0x23]),
@@ -275,7 +274,7 @@ fn insert_value_into_branch_root_internal<T: TrieLayout>() {
 	t.insert(&[0x01u8, 0x23], &[0x01u8, 0x23]).unwrap();
 	t.insert(&[], &[0x0]).unwrap();
 	assert_eq!(
-		*t.root(),
+		*checked_root(&mut t),
 		reference_trie_root::<T, _, _, _>(vec![
 			(vec![], vec![0x0]),
 			(vec![0x01u8, 0x23], vec![0x01u8, 0x23]),
@@ -291,7 +290,7 @@ fn insert_split_leaf_internal<T: TrieLayout>() {
 	t.insert(&[0x01u8, 0x23], &[0x01u8, 0x23]).unwrap();
 	t.insert(&[0x01u8, 0x34], &[0x01u8, 0x34]).unwrap();
 	assert_eq!(
-		*t.root(),
+		*checked_root(&mut t),
 		reference_trie_root::<T, _, _, _>(vec![
 			(vec![0x01u8, 0x23], vec![0x01u8, 0x23]),
 			(vec![0x01u8, 0x34], vec![0x01u8, 0x34]),
@@ -308,7 +307,7 @@ fn insert_split_extenstion_internal<T: TrieLayout>() {
 	t.insert(&[0x01, 0xf3, 0x45], &[0x02]).unwrap();
 	t.insert(&[0x01, 0xf3, 0xf5], &[0x03]).unwrap();
 	assert_eq!(
-		*t.root(),
+		*checked_root(&mut t),
 		reference_trie_root::<T, _, _, _>(vec![
 			(vec![0x01, 0x23, 0x45], vec![0x01]),
 			(vec![0x01, 0xf3, 0x45], vec![0x02]),
@@ -328,7 +327,7 @@ fn insert_big_value_internal<T: TrieLayout>() {
 	t.insert(&[0x01u8, 0x23], big_value0).unwrap();
 	t.insert(&[0x11u8, 0x23], big_value1).unwrap();
 	assert_eq!(
-		*t.root(),
+		*checked_root(&mut t),
 		reference_trie_root::<T, _, _, _>(vec![
 			(vec![0x01u8, 0x23], big_value0.to_vec()),
 			(vec![0x11u8, 0x23], big_value1.to_vec())
@@ -346,7 +345,7 @@ fn insert_duplicate_value_internal<T: TrieLayout>() {
 	t.insert(&[0x01u8, 0x23], big_value).unwrap();
 	t.insert(&[0x11u8, 0x23], big_value).unwrap();
 	assert_eq!(
-		*t.root(),
+		*checked_root(&mut t),
 		reference_trie_root::<T, _, _, _>(vec![
 			(vec![0x01u8, 0x23], big_value.to_vec()),
 			(vec![0x11u8, 0x23], big_value.to_vec())
@@ -432,20 +431,20 @@ fn stress_internal<T: TrieLayout>() {
 		let mut memdb2 = PrefixedMemoryDB::<T>::default();
 		let mut root2 = Default::default();
 		let mut memtrie_sorted = populate_trie::<T>(&mut memdb2, &mut root2, &y);
-		if *memtrie.root() != real || *memtrie_sorted.root() != real {
+		if *checked_root(&mut memtrie) != real || *checked_root(&mut memtrie_sorted) != real {
 			println!("TRIE MISMATCH");
 			println!();
-			println!("ORIGINAL... {:#x?}", memtrie.root());
+			println!("ORIGINAL... {:#x?}", checked_root(&mut memtrie));
 			for i in &x {
 				println!("{:#x?} -> {:#x?}", i.0, i.1);
 			}
-			println!("SORTED... {:#x?}", memtrie_sorted.root());
+			println!("SORTED... {:#x?}", checked_root(&mut memtrie_sorted));
 			for i in &y {
 				println!("{:#x?} -> {:#x?}", i.0, i.1);
 			}
 		}
-		assert_eq!(*memtrie.root(), real);
-		assert_eq!(*memtrie_sorted.root(), real);
+		assert_eq!(*checked_root(&mut memtrie), real);
+		assert_eq!(*checked_root(&mut memtrie_sorted), real);
 	}
 }
 
@@ -482,7 +481,7 @@ fn insert_empty_internal<T: TrieLayout>() {
 		t.insert(key, value).unwrap();
 	}
 
-	assert_eq!(*t.root(), reference_trie_root::<T, _, _, _>(x.clone()));
+	assert_eq!(*checked_root(&mut t), reference_trie_root::<T, _, _, _>(x.clone()));
 
 	for &(ref key, _) in &x {
 		t.insert(key, &[]).unwrap();
@@ -490,7 +489,7 @@ fn insert_empty_internal<T: TrieLayout>() {
 
 	assert!(t.is_empty());
 	let hashed_null_node = reference_hashed_null_node::<T>();
-	assert_eq!(*t.root(), hashed_null_node);
+	assert_eq!(*checked_root(&mut t), hashed_null_node);
 }
 
 test_layouts!(return_old_values, return_old_values_internal);
@@ -535,7 +534,7 @@ fn insert_empty_allowed() {
 	t.insert(b"test", &[]).unwrap();
 
 	assert_eq!(
-		*t.root(),
+		*checked_root(&mut t),
 		reference_trie_root::<reference_trie::AllowEmptyLayout, _, _, _>(vec![(
 			b"test".to_vec(),
 			Vec::new()
@@ -889,4 +888,15 @@ fn test_two_assets_memory_db_inner_2<T: TrieLayout>() {
 	assert_eq!(state.get(key1.as_ref()).unwrap().unwrap(), data1);
 	assert_eq!(state.get(key2.as_ref()).unwrap().unwrap(), data2);
 	assert_eq!(state.get(key3.as_ref()).unwrap().unwrap(), data3);
+}
+
+/// Test that the temp_root is the same as the root after commit.
+fn checked_root<'a, L: TrieLayout>(db: &'a mut TrieDBMut<'_, L>) -> &'a TrieHash<L>{
+	let temp_root = db.temp_root();
+	let root = db.root();
+	assert_eq!(
+		&temp_root,
+		root
+	);
+	root
 }
