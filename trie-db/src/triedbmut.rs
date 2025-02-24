@@ -44,10 +44,12 @@ use crate::rstd::fmt::{self, Debug};
 // For lookups into the Node storage buffer.
 // This is deliberately non-copyable.
 #[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Clone)]
 struct StorageHandle(usize);
 
 // Handles to nodes in the trie.
 #[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Clone)]
 enum NodeHandle<H> {
 	/// Loaded into memory.
 	InMemory(StorageHandle),
@@ -208,6 +210,7 @@ impl<L: TrieLayout> Value<L> {
 }
 
 /// Node types in the Trie.
+#[derive(Clone)]
 enum Node<L: TrieLayout> {
 	/// Empty node.
 	Empty,
@@ -1864,6 +1867,85 @@ where
 				*self.root = hash;
 				self.root_handle =
 					NodeHandle::InMemory(self.storage.alloc(Stored::Cached(node, hash)));
+			},
+		}
+	}
+
+	/// This calculates what the hash root of the trie would be if changes are committed, but it does it without committing any changes.
+	/// This is useful for calculating the hash of a trie without actually changing the trie.
+	/// WARNING: This is not a cheap operation, and should be used sparingly.
+	pub fn temp_root(&self) -> TrieHash<L> {
+
+		let handle = match self.root_handle() {
+			NodeHandle::Hash(hash) => return hash, // no changes necessary.
+			NodeHandle::InMemory(h) => h,
+		};
+
+		match &self.storage.nodes[handle.0] {
+			Stored::New(node) => {
+				let node = node.clone();
+				let encoded_root = node.into_encoded(|node, _o_slice, _o_index| {
+					match node {
+						NodeToEncode::Node(value) => {
+							let value_hash = L::Hash::hash(value);
+							ChildReference::Hash(value_hash)
+						},
+						NodeToEncode::TrieNode(child) => {
+							self.temp_root_child(child)
+						},
+					}
+				});
+				let root = L::Hash::hash(&encoded_root);
+				root
+			},
+			Stored::Cached(_node, hash) => {
+				hash.clone()
+			},
+		}
+	}
+
+
+	fn temp_root_child(
+		&self,
+		handle: NodeHandle<TrieHash<L>>,
+	) -> ChildReference<TrieHash<L>> {
+		match handle {
+			NodeHandle::Hash(hash) => ChildReference::Hash(hash),
+			NodeHandle::InMemory(storage_handle) => {
+				match &self.storage.nodes[storage_handle.0] {
+					Stored::Cached(_, hash) => ChildReference::Hash(hash.clone()),
+					Stored::New(node) => {
+
+						let encoded = {
+							let commit_child = |node: NodeToEncode<TrieHash<L>>,
+							                    _o_slice: Option<&NibbleSlice>,
+							                    _o_index: Option<u8>| {
+								match node {
+									NodeToEncode::Node(value) => {
+										let value_hash = L::Hash::hash(value);
+										ChildReference::Hash(value_hash)
+									},
+									NodeToEncode::TrieNode(node_handle) => {
+										self.temp_root_child(node_handle)
+									},
+								}
+							};
+							node.clone().into_encoded(commit_child)
+						};
+						if encoded.len() >= L::Hash::LENGTH {
+							let hash = L::Hash::hash(&encoded);
+							ChildReference::Hash(hash)
+						} else {
+							// it's a small value, so we cram it into a `TrieHash<L>`
+							// and tag with length
+							let mut h = <TrieHash<L>>::default();
+							let len = encoded.len();
+							h.as_mut()[..len].copy_from_slice(&encoded[..len]);
+
+							ChildReference::Inline(h, len)
+						}
+					},
+				}
 			},
 		}
 	}

@@ -2,8 +2,9 @@ name: build
 
 on:
   push:
-    branches: [master]
+    branches: [master, bitfinity_main]
   pull_request:
+    branches: [master, bitfinity_main]
 
 jobs:
   build:

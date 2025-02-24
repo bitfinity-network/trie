@@ -166,7 +166,7 @@ impl<'a> NibbleSlice<'a> {
 
 	/// Return `Partial` representation of this slice:
 	/// first encoded byte and following slice.
-	pub fn right(&'a self) -> Partial {
+	pub fn right(&self) -> Partial {
 		let split = self.offset / nibble_ops::NIBBLE_PER_BYTE;
 		let nb = (self.len() % nibble_ops::NIBBLE_PER_BYTE) as u8;
 		if nb > 0 {
@@ -237,7 +237,7 @@ impl<'a> NibbleSlice<'a> {
 	/// Return left portion of `NibbleSlice`, if the slice
 	/// originates from a full key it will be the `Prefix of
 	/// the node`.
-	pub fn left(&'a self) -> Prefix {
+	pub fn left(&self) -> Prefix {
 		let split = self.offset / nibble_ops::NIBBLE_PER_BYTE;
 		let ix = (self.offset % nibble_ops::NIBBLE_PER_BYTE) as u8;
 		if ix == 0 {

@@ -18,10 +18,12 @@ use super::{CodecError as Error, NodeCodec as NodeCodecT, *};
 use trie_db::node::Value;
 
 /// No extension trie with no hashed value.
+#[derive(Clone)]
 pub struct HashedValueNoExt;
 
 /// No extension trie which stores value above a static size
 /// as external node.
+#[derive(Clone)]
 pub struct HashedValueNoExtThreshold<const C: u32>;
 
 impl TrieLayout for HashedValueNoExt {
